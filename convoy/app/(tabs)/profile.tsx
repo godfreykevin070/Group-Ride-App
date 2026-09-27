@@ -1,235 +1,193 @@
-import { View, Text, Image, Pressable } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import {
-  ChevronRight,
-  Flame,
-  TrendingUp,
-  Clock,
-  Award,
-  Settings,
-  HelpCircle,
-  LogOut,
-} from "lucide-react-native";
-import { ScreenContainer } from "../../components/layout/ScreenContainer";
-import { RIDER_STATS, USER } from "../../constants/mockData";
-
-const MENU = [
-  { Icon: Award, label: "My achievements" },
-  { Icon: TrendingUp, label: "Riding statistics" },
-  { Icon: Clock, label: "Ride history" },
-  { Icon: Settings, label: "Settings" },
-  { Icon: HelpCircle, label: "Help & support" },
-  { Icon: LogOut, label: "Sign out" },
-];
+import { View, Text, Pressable, Alert } from "react-native";
+import { useRouter } from "expo-router";
+import { ScreenContainer } from "../../src/components/layout/ScreenContainer";
+import { Avatar } from "../../src/components/ui/Avatar";
+import { Icon } from "../../src/components/ui/Icon";
+import { SectionHead } from "../../src/components/ui/SectionHead";
+import { useApp } from "../../src/context/AppContext";
 
 export default function Profile() {
+  const router = useRouter();
+  const { state, addSosContact, removeSosContact, reset } = useApp();
+  const user = state.user;
+
+  // ✅ Guard before any usage — hooks above are fine
+  if (!user) return null;
+
+  const done = state.rides.filter((r) => r.riders.includes(user.name) && r.status === "completed");
+  const km = done.reduce((s, r) => s + (r.distance || 0), 0);
+  const journalCount = done.reduce((s, r) => s + (r.journal?.length || 0), 0);
+
+  const onAddSos = () => {
+    Alert.prompt?.("Contact name", undefined, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Next",
+        onPress: (name?: string) => {
+          if (!name) return;
+          Alert.prompt?.("Phone number", undefined, [
+            { text: "Cancel", style: "cancel" },
+            { text: "Add", onPress: (phone?: string) => phone && addSosContact({ name, phone }) },
+          ]);
+        },
+      },
+    ]);
+  };
+
   return (
     <ScreenContainer>
-      {/* Page heading */}
-      <View className="px-4 pt-3 pb-4">
-        <Text
-          className="text-white text-[34px] leading-[36px] mt-1"
-          style={{ fontWeight: "900", letterSpacing: -1.4 }}
-        >
-          Profile
-        </Text>
-      </View>
-      
-      {/* Split hero: text left, face right, black gradient over the photo */}
-      <Animated.View
-        entering={FadeInDown.duration(500).springify()}
-        className="mx-4 rounded-[28px] overflow-hidden border border-white/8"
-        style={{ height: 200 }}
-      >
-        <View className="flex-1 relative">
-          {/* Photo on the right ~55% */}
-          <View
-            className="absolute right-0 top-0 bottom-0"
-            style={{ width: "55%" }}
-          >
-            <Image
-              source={{ uri: USER.avatar }}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="cover"
-            />
-            {/* Black gradient fading from left → right */}
-            <LinearGradient
-              colors={[
-                "#000000",
-                "transparent",
-                "transparent",
-                "transparent",
-              ]}
-              locations={[0, 0.35, 0.7, 1]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-              }}
-            />
-          </View>
-
-          {/* Solid black base on the left */}
-          <LinearGradient
-            colors={["#0C0E12", "transparent", "transparent"]}
-            locations={[0, 0.6, 1]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-            pointerEvents="none"
-          />
-
-          {/* Text content on the left */}
-          <View className="flex-1 justify-center pl-5 pr-[60%] z-10">
-            <Text
-              className="text-white/50 text-[11px]"
-              style={{ fontWeight: "800", letterSpacing: 1.4 }}
-            >
-              RIDER
-            </Text>
-            <Text
-              className="text-white text-[26px] leading-[28px] mt-2"
-              style={{ fontWeight: "900", letterSpacing: -1 }}
-            >
-              {USER.name}
-            </Text>
-            <Text
-              className="text-white/60 text-[13px] mt-1"
-              style={{ fontWeight: "600" }}
-            >
-              {USER.handle}
-            </Text>
-            <View className="flex-row items-center gap-1.5 mt-3 self-start bg-[#D4FF3A]/15 rounded-full px-2.5 py-1">
-              <Flame size={12} color="#D4FF3A" strokeWidth={2.6} />
-              <Text
-                className="text-[#D4FF3A] text-[11px]"
-                style={{ fontWeight: "900", letterSpacing: 0.6 }}
-              >
-                {USER.level}
-              </Text>
-            </View>
-          </View>
+      {/* ============ Header with edit button ============ */}
+      <View className="px-5 pt-3 pb-2 flex-row items-start justify-between">
+        <View>
+          <Text className="text-white/60 text-[13px] font-semibold">Your account</Text>
+          <Text className="text-white text-[28px] font-black tracking-tighter mt-1">Profile</Text>
         </View>
-      </Animated.View>
-
-      {/* Big stat blocks */}
-      <Animated.View
-        entering={FadeInDown.delay(100).duration(500).springify()}
-        className="mx-4 mt-6 pb-6 border-b border-white/8"
-      >
-        <Text
-          className="text-white/50 text-[13px]"
-          style={{ fontWeight: "800", letterSpacing: 1 }}
+        <Pressable
+          onPress={() => router.push("/profile-edit")}
+          className="w-11 h-11 rounded-full bg-surface border border-white/8 items-center justify-center"
         >
-          LIFETIME DISTANCE
-        </Text>
-        <Text
-          className="text-white text-[52px] leading-[56px] mt-2"
-          style={{ fontWeight: "900", letterSpacing: -2 }}
-        >
-          3,240 KM
-        </Text>
-        <Text
-          className="text-white/70 text-[15px] mt-1"
-          style={{ fontWeight: "600" }}
-        >
-          Across 47 rides in 12 months
-        </Text>
-      </Animated.View>
-
-      <Animated.View
-        entering={FadeInDown.delay(180).duration(500).springify()}
-        className="mx-4 mt-6 pb-6 border-b border-white/8"
-      >
-        <Text
-          className="text-white/50 text-[13px]"
-          style={{ fontWeight: "800", letterSpacing: 1 }}
-        >
-          AVERAGE SPEED
-        </Text>
-        <Text
-          className="text-white text-[52px] leading-[56px] mt-2"
-          style={{ fontWeight: "900", letterSpacing: -2 }}
-        >
-          42 km/h
-        </Text>
-        <Text
-          className="text-white/70 text-[15px] mt-1"
-          style={{ fontWeight: "600" }}
-        >
-          Max speed {RIDER_STATS.maxSpeed} km/h
-        </Text>
-      </Animated.View>
-
-      {/* Small stat grid */}
-      <View className="mx-4 mt-6 flex-row gap-3">
-        <View className="flex-1 bg-white rounded-[22px] p-4">
-          <Text
-            className="text-black/60 text-[10px]"
-            style={{ fontWeight: "800", letterSpacing: 1 }}
-          >
-            STREAK
-          </Text>
-          <Text
-            className="text-black text-[32px] leading-[34px] mt-1"
-            style={{ fontWeight: "900", letterSpacing: -1.4 }}
-          >
-            {RIDER_STATS.streakDays}d
-          </Text>
-        </View>
-        <View className="flex-1 bg-[#00D68F] rounded-[22px] p-4">
-          <Text
-            className="text-black/70 text-[10px]"
-            style={{ fontWeight: "800", letterSpacing: 1 }}
-          >
-            RIDING TIME
-          </Text>
-          <Text
-            className="text-black text-[26px] leading-[28px] mt-1"
-            style={{ fontWeight: "900", letterSpacing: -1 }}
-          >
-            {RIDER_STATS.ridingTime}
-          </Text>
-        </View>
+          <Icon name="pencil" size={18} />
+        </Pressable>
       </View>
 
-      {/* Menu */}
-      <View className="mx-4 mt-8 bg-[#0C0E12] border border-white/6 rounded-[24px] overflow-hidden">
-        {MENU.map((item, i) => (
-          <Pressable
-            key={item.label}
-            className={`flex-row items-center gap-3 px-4 py-4 ${
-              i < MENU.length - 1 ? "border-b border-white/5" : ""
-            }`}
-          >
-            <View className="w-9 h-9 rounded-full bg-white/6 items-center justify-center">
-              <item.Icon size={17} color="#fff" strokeWidth={2.4} />
-            </View>
-            <Text
-              className="text-white flex-1 text-[15px]"
-              style={{ fontWeight: "700" }}
+      {/* ============ Profile card — tappable to edit ============ */}
+      <Pressable
+        onPress={() => router.push("/profile-edit")}
+        className="mx-5 mt-4 p-5 rounded-[26px] flex-row items-center gap-4"
+        style={{
+          backgroundColor: "rgba(255,123,107,0.1)",
+          borderWidth: 1,
+          borderColor: "rgba(255,123,107,0.15)",
+        }}
+      >
+        <Avatar person={user} size={72} borderColor="#FF7B6B" />
+        <View className="flex-1 min-w-0">
+          <Text className="text-white text-[20px] font-black tracking-tight" numberOfLines={1}>
+            {user.name}
+          </Text>
+          <Text className="text-white/60 text-[12px] font-semibold mt-1">{user.handle}</Text>
+        </View>
+        <View
+          className="w-9 h-9 rounded-full items-center justify-center"
+          style={{ backgroundColor: "rgba(255,123,107,0.2)" }}
+        >
+          <Icon name="pencil" size={14} color="#FF7B6B" strokeWidth={2.6} />
+        </View>
+      </Pressable>
+
+      {/* ============ Lifetime stats ============ */}
+      <View className="px-5 pt-6">
+        <Text className="text-white/35 text-[11px] font-black tracking-widest uppercase">
+          Lifetime distance
+        </Text>
+        <View className="flex-row items-baseline mt-2">
+          <Text className="text-white text-[52px] font-black tracking-tighter leading-[54px]">
+            {km.toLocaleString()}
+          </Text>
+          <Text className="text-white/60 text-[18px] font-bold ml-2">km</Text>
+        </View>
+        <Text className="text-white/60 text-[13px] font-medium mt-1.5">
+          Across {done.length} ride{done.length === 1 ? "" : "s"}
+        </Text>
+      </View>
+
+      <View className="px-5 pt-6 flex-row gap-2.5">
+        <Tile label="Friends" value={state.friends.length} />
+        <Tile label="Clubs" value={state.clubs.length} />
+        <Tile label="Photos" value={journalCount} />
+      </View>
+
+      {/* ============ Emergency contacts ============ */}
+      <SectionHead title="Emergency contacts" action="Add" onAction={onAddSos} />
+      <View className="mx-5 bg-surface border border-white/8 rounded-[20px] overflow-hidden">
+        {state.sosContacts.length === 0 ? (
+          <Pressable onPress={onAddSos} className="flex-row items-center gap-3 p-4">
+            <View
+              className="w-10 h-10 rounded-full items-center justify-center"
+              style={{ backgroundColor: "rgba(255,92,122,0.12)" }}
             >
-              {item.label}
-            </Text>
-            <ChevronRight
-              size={18}
-              color="rgba(255,255,255,0.3)"
-              strokeWidth={2.4}
-            />
+              <Icon name="userPlus" size={18} color="#FF5C7A" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-white text-[13px] font-bold">Add an emergency contact</Text>
+              <Text className="text-white/35 text-[11px] mt-0.5">They'll be alerted when you press SOS</Text>
+            </View>
           </Pressable>
-        ))}
+        ) : (
+          state.sosContacts.map((c) => (
+            <View
+              key={c.id}
+              className="flex-row items-center gap-3 p-4 border-b border-white/4 last:border-b-0"
+            >
+              <View
+                className="w-10 h-10 rounded-full items-center justify-center"
+                style={{ backgroundColor: "rgba(124,229,176,0.12)" }}
+              >
+                <Icon name="shield" size={18} color="#7CE5B0" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-white text-[13px] font-bold">{c.name}</Text>
+                <Text className="text-white/35 text-[11px] mt-0.5">{c.phone}</Text>
+              </View>
+              <Pressable onPress={() => removeSosContact(c.id)}>
+                <Icon name="trash" size={16} color="rgba(240,243,248,0.35)" />
+              </Pressable>
+            </View>
+          ))
+        )}
+      </View>
+
+      {/* ============ Settings ============ */}
+      <SectionHead title="Settings" />
+      <View className="mx-5 bg-surface border border-white/8 rounded-[20px] overflow-hidden mb-10">
+        <Pressable
+          onPress={() => router.push("/profile-edit")}
+          className="flex-row items-center gap-3 p-4 border-b border-white/4"
+        >
+          <View
+            className="w-10 h-10 rounded-full items-center justify-center"
+            style={{ backgroundColor: "rgba(255,180,84,0.12)" }}
+          >
+            <Icon name="pencil" size={18} color="#FFB454" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-white text-[13px] font-bold">Edit profile</Text>
+          </View>
+          <Icon name="chevronRight" size={16} color="rgba(240,243,248,0.35)" />
+        </Pressable>
+
+        <Pressable
+          onPress={() =>
+            Alert.alert("Reset", "Delete all data?", [
+              { text: "Cancel" },
+              { text: "Reset", style: "destructive", onPress: reset },
+            ])
+          }
+          className="flex-row items-center gap-3 p-4"
+        >
+          <View
+            className="w-10 h-10 rounded-full items-center justify-center"
+            style={{ backgroundColor: "rgba(255,92,122,0.12)" }}
+          >
+            <Icon name="logout" size={18} color="#FF5C7A" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-white text-[13px] font-bold">Reset app</Text>
+          </View>
+          <Icon name="chevronRight" size={16} color="rgba(240,243,248,0.35)" />
+        </Pressable>
       </View>
     </ScreenContainer>
+  );
+}
+
+function Tile({ label, value }: { label: string; value: number }) {
+  return (
+    <View className="flex-1 p-3.5 rounded-[20px] bg-surface border border-white/8 items-center">
+      <Text className="text-white/35 text-[10px] font-black tracking-widest uppercase">
+        {label}
+      </Text>
+      <Text className="text-white text-[24px] font-black tracking-tighter mt-1">{value}</Text>
+    </View>
   );
 }

@@ -1,229 +1,142 @@
-import { useState, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useRef, useState } from "react";
+import { View, Text, Pressable, Share, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { LinearGradient } from "expo-linear-gradient";
-import Animated, {
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
-import { X, Zap, ZapOff, Users } from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import QRCode from "react-native-qrcode-svg";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
+import { useApp } from "../src/context/AppContext";
+import { Icon } from "../src/components/ui/Icon";
+
+const INVITE_PREFIX = "https://convoy.app/join/";
 
 export default function Invite() {
   const router = useRouter();
-  const [permission, requestPermission] = useCameraPermissions();
-  const [torch, setTorch] = useState(false);
-  const [scanned, setScanned] = useState(false);
+  const { state, addFriend, toast } = useApp();
+  const [sharing, setSharing] = useState(false);
+  const qrRef = useRef<View>(null);
 
-  const scanY = useSharedValue(0);
+  const inviteUrl = `${INVITE_PREFIX}${state.meta.installId}`;
 
-  useEffect(() => {
-    scanY.value = withRepeat(
-      withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, []);
+  const shareLink = async () => {
+    try {
+      await Share.share({
+        title: "Convoy",
+        message: `Join me on Convoy — the app for motorbike riders. ${inviteUrl}`,
+      });
+    } catch {}
+  };
 
-  const scanLineStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: scanY.value * 240 }],
-  }));
+  const shareQrImage = async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      if (!qrRef.current) return;
+      const captured = await captureRef(qrRef, {
+        format: "png",
+        quality: 1,
+      });
+      const uri = captured.startsWith("file://") ? captured : `file://${captured}`;
 
-  // Fallback if permissions haven't resolved yet
-  if (!permission) {
-    return (
-      <View className="flex-1 bg-black items-center justify-center">
-        <Text className="text-white/60 text-[14px]">Loading camera…</Text>
-      </View>
-    );
-  }
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "image/png",
+          dialogTitle: "Invite friends to Convoy",
+        });
+      } else {
+        await Share.share({ url: uri });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Alert.alert("Share failed", message);
+    } finally {
+      setSharing(false);
+    }
+  };
 
-  // Permission not granted yet
-  if (!permission.granted) {
-    return (
-      <LinearGradient
-        colors={["#0F2818", "#000000"]}
-        style={{ flex: 1 }}
-      >
-        <View className="flex-row justify-end px-4 pt-14">
-          <Pressable
-            onPress={() => router.back()}
-            className="w-11 h-11 rounded-full bg-white/10 border border-white/15 items-center justify-center"
-          >
-            <X size={20} color="#fff" strokeWidth={2.6} />
-          </Pressable>
-        </View>
-
-        <View className="flex-1 items-center justify-center px-8">
-          <View className="w-24 h-24 rounded-full bg-[#D4FF3A]/15 items-center justify-center mb-6">
-            <Users size={40} color="#D4FF3A" strokeWidth={2.4} />
-          </View>
-          <Text
-            className="text-white text-[26px] text-center"
-            style={{ fontWeight: "900", letterSpacing: -1 }}
-          >
-            Scan to Invite
-          </Text>
-          <Text
-            className="text-white/60 text-[14px] text-center mt-3 leading-[20px]"
-            style={{ fontWeight: "600" }}
-          >
-            We need camera access to scan your friend's QR code and add them
-            to your convoy.
-          </Text>
-
-          <Pressable
-            onPress={requestPermission}
-            className="mt-8 rounded-full px-6 py-4"
-            style={{ backgroundColor: "#D4FF3A" }}
-          >
-            <Text
-              className="text-black text-[15px]"
-              style={{ fontWeight: "900" }}
-            >
-              Grant camera access
-            </Text>
-          </Pressable>
-        </View>
-      </LinearGradient>
-    );
-  }
+  const simulate = () => {
+    const names = ["Rahul M.", "Priya S.", "Vikram K.", "Aditi R.", "Karan T.", "Neha B."];
+    const existing = new Set(state.friends.map((f) => f.name));
+    const avail = names.filter((n) => !existing.has(n));
+    if (!avail.length) return toast("All demo friends added");
+    addFriend(avail[0]);
+    toast(`${avail[0]} joined your crew!`);
+    router.back();
+  };
 
   return (
-    <View className="flex-1 bg-black">
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing="back"
-        enableTorch={torch}
-        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-        onBarcodeScanned={({ data }) => {
-          if (scanned) return;
-          setScanned(true);
-          // handle scanned QR — for now, go back after a beat
-          setTimeout(() => router.back(), 600);
-        }}
-      />
-
-      {/* Dark vignette */}
-      <LinearGradient
-        colors={[
-          "rgba(0,0,0,0.85)",
-          "rgba(0,0,0,0.4)",
-          "rgba(0,0,0,0.4)",
-          "rgba(0,0,0,0.9)",
-        ]}
-        locations={[0, 0.3, 0.7, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
-      {/* Top bar */}
-      <View className="flex-row justify-between items-center px-4 pt-14">
-        <Text
-          className="text-white text-[20px]"
-          style={{ fontWeight: "900", letterSpacing: -0.6 }}
+    <SafeAreaView className="flex-1 bg-bg" edges={["top"]}>
+      <View className="flex-row items-center gap-3 px-5 py-4">
+        <Pressable
+          onPress={() => router.back()}
+          className="w-10 h-10 rounded-full bg-surface border border-white/8 items-center justify-center"
         >
-          Scan QR
-        </Text>
-        <View className="flex-row gap-2">
-          <Pressable
-            onPress={() => setTorch((t) => !t)}
-            className="w-11 h-11 rounded-full bg-white/10 border border-white/15 items-center justify-center"
-          >
-            {torch ? (
-              <Zap size={18} color="#D4FF3A" strokeWidth={2.6} />
-            ) : (
-              <ZapOff size={18} color="#fff" strokeWidth={2.6} />
-            )}
-          </Pressable>
-          <Pressable
-            onPress={() => router.back()}
-            className="w-11 h-11 rounded-full bg-white/10 border border-white/15 items-center justify-center"
-          >
-            <X size={20} color="#fff" strokeWidth={2.6} />
-          </Pressable>
-        </View>
+          <Icon name="x" size={20} />
+        </Pressable>
+        <Text className="text-white text-[20px] font-black tracking-tight">Invite friends</Text>
       </View>
 
-      {/* Scan frame */}
-      <View className="flex-1 items-center justify-center">
+      <View className="items-center pt-6">
         <View
-          className="w-[260px] h-[260px] rounded-[32px] relative overflow-hidden"
-          style={{ borderWidth: 2, borderColor: "rgba(255,255,255,0.15)" }}
+          ref={qrRef}
+          collapsable={false}
+          style={{
+            backgroundColor: "#fff",
+            borderRadius: 28,
+            padding: 20,
+            shadowColor: "#FF7B6B",
+            shadowOpacity: 0.3,
+            shadowRadius: 20,
+            shadowOffset: { width: 0, height: 10 },
+          }}
         >
-          {/* Corner brackets */}
-          <View className="absolute top-0 left-0 w-10 h-10 border-t-[4px] border-l-[4px] border-[#D4FF3A] rounded-tl-[32px]" />
-          <View className="absolute top-0 right-0 w-10 h-10 border-t-[4px] border-r-[4px] border-[#D4FF3A] rounded-tr-[32px]" />
-          <View className="absolute bottom-0 left-0 w-10 h-10 border-b-[4px] border-l-[4px] border-[#D4FF3A] rounded-bl-[32px]" />
-          <View className="absolute bottom-0 right-0 w-10 h-10 border-b-[4px] border-r-[4px] border-[#D4FF3A] rounded-br-[32px]" />
-
-          {/* Animated scan line */}
-          <Animated.View
-            style={[
-              {
-                position: "absolute",
-                left: 20,
-                right: 20,
-                height: 2,
-                backgroundColor: "#D4FF3A",
-                shadowColor: "#D4FF3A",
-                shadowOpacity: 1,
-                shadowRadius: 10,
-                shadowOffset: { width: 0, height: 0 },
-              },
-              scanLineStyle,
-            ]}
+          <QRCode
+            value={inviteUrl}
+            size={200}
+            color="#0B0E15"
+            backgroundColor="#fff"
           />
         </View>
 
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500).springify()}
-          className="mt-8 px-10"
-        >
-          <Text
-            className="text-white text-[15px] text-center"
-            style={{ fontWeight: "700" }}
-          >
-            {scanned ? "Rider found!" : "Point at your friend's Convoy QR"}
-          </Text>
-          <Text
-            className="text-white/50 text-[13px] text-center mt-2"
-            style={{ fontWeight: "600" }}
-          >
-            We'll add them to your convoy automatically.
-          </Text>
-        </Animated.View>
+        <Text className="text-white text-[22px] font-black tracking-tight mt-8 text-center">
+          Your convoy starts here
+        </Text>
+        <Text className="text-white/60 text-[13px] font-medium mt-2.5 text-center px-10 leading-5">
+          Share this QR with your friends.
+        </Text>
       </View>
 
-      {/* Bottom actions */}
-      <View className="px-4 pb-10 gap-3">
+      <View className="flex-1" />
+
+      <View className="px-5 pb-10 gap-2.5">
         <Pressable
-          className="rounded-full py-4 items-center justify-center"
-          style={{ backgroundColor: "#D4FF3A" }}
+          onPress={shareLink}
+          className="bg-primary rounded-[14px] py-4 items-center justify-center flex-row gap-2"
         >
-          <Text
-            className="text-black text-[14px]"
-            style={{ fontWeight: "900" }}
-          >
-            Show my QR instead
+          <Icon name="share" size={18} color="#fff" strokeWidth={2.4} />
+          <Text className="text-white text-[14px] font-extrabold">Share invite link</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={shareQrImage}
+          disabled={sharing}
+          className="bg-surface border border-white/8 rounded-[14px] py-4 items-center justify-center flex-row gap-2"
+          style={{ opacity: sharing ? 0.5 : 1 }}
+        >
+          <Icon name="image" size={18} strokeWidth={2.4} />
+          <Text className="text-white text-[14px] font-extrabold">
+            {sharing ? "Preparing…" : "Share QR image"}
           </Text>
         </Pressable>
+
         <Pressable
-          onPress={() => router.back()}
-          className="rounded-full py-4 items-center justify-center border border-white/15 bg-white/5"
+          onPress={simulate}
+          className="bg-surface border border-white/8 rounded-[14px] py-4 items-center justify-center flex-row gap-2"
         >
-          <Text
-            className="text-white text-[14px]"
-            style={{ fontWeight: "800" }}
-          >
-            Cancel
-          </Text>
+          <Icon name="userPlus" size={18} strokeWidth={2.4} />
+          <Text className="text-white text-[14px] font-extrabold">Simulate friend accepting</Text>
         </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }

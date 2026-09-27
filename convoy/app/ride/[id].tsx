@@ -1,209 +1,144 @@
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { Fragment } from "react";
+import { View, Text, Image, Pressable, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import { Users, Calendar, MapPin, Navigation } from "lucide-react-native";
-
-import { ParallaxHero } from "../../components/ui/ParallaxHero";
-import { useScreenScroll } from "../../hooks/useScreenScroll";
-import { UPCOMING_RIDES, UPCOMING_RIDE } from "../../constants/mockData";
+import { useApp } from "../../src/context/AppContext";
+import { Icon } from "../../src/components/ui/Icon";
 
 export default function RideDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const ride = UPCOMING_RIDES.find((r) => r.id === id) ?? UPCOMING_RIDE;
+  const { state, startRide, updateRide, deleteRide } = useApp();
+  const ride = state.rides.find((r) => r.id === id);
+  if (!ride || !state.user) return null;
 
-  const { scrollY, scrollHandler } = useScreenScroll();
+  const joined = ride.riders.includes(state.user.name);
+  const isCreator = ride.createdBy === state.user.name;
+  const dt = new Date(ride.date);
+  const hasJournal = (ride.journal || []).length > 0;
 
   return (
-    <View className="flex-1 bg-black">
-      <Animated.ScrollView
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      >
-        <ParallaxHero
-          image={ride.image}
-          eyebrow={`${ride.round} · ${ride.difficulty.toUpperCase()}`}
-          title={ride.title}
-          subtitle={`${ride.startPoint} → ${ride.city}`}
-          scrollY={scrollY}
-          onBack={() => router.back()}
-          height={400}
-          parallaxStrength={0.5}
-        />
-
-        {/* Stats row overlapping the hero */}
-        <View className="mx-4 -mt-6 flex-row gap-3 z-10">
-          <StatBlock label="Distance" value={`${ride.distance}`} unit="km" />
-          <StatBlock label="Duration" value={ride.duration} />
-          <StatBlock label="Riders" value={`${ride.participants}`} />
-        </View>
-
-        {/* Organizer */}
-        <Animated.View
-          entering={FadeInDown.delay(150).duration(500).springify()}
-          className="mx-4 mt-6 flex-row items-center gap-3 bg-[#0C0E12] border border-white/8 rounded-[22px] p-4"
+    <ScrollView className="flex-1 bg-bg" contentContainerStyle={{ paddingBottom: 60 }}>
+      <View style={{ height: 220, position: "relative" }}>
+        <Image source={{ uri: ride.cover }} style={{ width: "100%", height: "100%" }} />
+        <View style={{ position: "absolute", inset: 0, backgroundColor: "rgba(11,14,21,0.5)" }} />
+        <Pressable
+          onPress={() => router.back()}
+          className="absolute top-12 left-5 w-10 h-10 rounded-full items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
         >
-          <View className="w-12 h-12 rounded-full bg-[#D4FF3A]/15 items-center justify-center">
-            <Users size={20} color="#D4FF3A" strokeWidth={2.6} />
-          </View>
-          <View className="flex-1">
-            <Text
-              className="text-white/50 text-[11px]"
-              style={{ fontWeight: "800", letterSpacing: 1 }}
-            >
-              ORGANIZER
-            </Text>
-            <Text
-              className="text-white text-[16px] mt-0.5"
-              style={{ fontWeight: "900" }}
-            >
-              {ride.organizer}
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* Date + start */}
-        <View className="mx-4 mt-4 bg-[#0C0E12] border border-white/8 rounded-[22px] p-5">
-          <Row Icon={Calendar} label="Date" value={ride.date} />
-          <View className="h-4" />
-          <Row Icon={MapPin} label="Start" value={ride.startPoint} />
+          <Icon name="back" size={20} />
+        </Pressable>
+        <View className="absolute bottom-5 left-5 right-5">
+          <Text className="text-primary text-[10px] font-black tracking-widest uppercase">{ride.difficulty}</Text>
+          <Text className="text-white text-[24px] font-black tracking-tight mt-1">{ride.title}</Text>
         </View>
+      </View>
 
-        {/* Checkpoints */}
-        <Text
-          className="text-white text-[22px] mx-4 mt-8 mb-3"
-          style={{ fontWeight: "900", letterSpacing: -0.6 }}
-        >
-          Checkpoints
-        </Text>
-        <View className="mx-4 bg-[#0C0E12] border border-white/6 rounded-[22px] p-4">
-          {ride.checkpoints.map((cp, i) => (
-            <View
-              key={cp}
-              className={`flex-row items-center gap-3 py-3 ${
-                i < ride.checkpoints.length - 1 ? "border-b border-white/5" : ""
-              }`}
-            >
-              <View
-                className="w-7 h-7 rounded-full items-center justify-center"
-                style={{
-                  backgroundColor:
-                    i === 0 ? "#D4FF3A" : "rgba(255,255,255,0.08)",
-                }}
-              >
-                <Text
-                  className="text-[12px]"
-                  style={{
-                    color: i === 0 ? "#000" : "rgba(255,255,255,0.5)",
-                    fontWeight: "900",
-                  }}
-                >
-                  {i + 1}
-                </Text>
-              </View>
-              <Text
-                className="text-white flex-1 text-[15px]"
-                style={{ fontWeight: "700" }}
-              >
-                {cp}
-              </Text>
-            </View>
-          ))}
-        </View>
+      <View className="flex-row gap-2.5 px-5 pt-5">
+        <Mini label="Distance" value={`${ride.distance}`} unit="km" />
+        <Mini label="Date" value={`${dt.getDate()}`} unit={dt.toLocaleDateString("en-IN", { month: "short" })} />
+        <Mini label="Riders" value={`${ride.riders.length}`} />
+      </View>
 
-        {/* Join button */}
-        <View className="mx-4 mt-8">
-          <Pressable
-            className="rounded-full py-5 flex-row items-center justify-center gap-2"
-            style={{
-              backgroundColor: "#D4FF3A",
-              shadowColor: "#D4FF3A",
-              shadowOpacity: 0.5,
-              shadowRadius: 20,
-              shadowOffset: { width: 0, height: 10 },
-            }}
-          >
-            <Navigation size={18} color="#000" strokeWidth={2.8} />
-            <Text
-              className="text-black text-[16px]"
-              style={{ fontWeight: "900" }}
-            >
-              Join Ride
-            </Text>
-          </Pressable>
-        </View>
-      </Animated.ScrollView>
-    </View>
-  );
-}
+      <Text className="text-white/35 text-[11px] font-black tracking-widest uppercase mx-5 mt-7 mb-3">Route</Text>
+      <View className="mx-5 bg-surface border border-white/8 rounded-[20px] p-4">
+        <RouteStep label="A" name={ride.from.name} color="#7CE5B0" textColor="#0B0E15" />
+        {ride.checkpoints.map((cp, i) => (
+          <Fragment key={cp.id}>
+            <View className="ml-[11px] h-5 border-l-2 border-dashed border-white/12" />
+            <RouteStep label={`${i + 1}`} name={cp.name} color="#FFB454" textColor="#000" />
+          </Fragment>
+        ))}
+        <View className="ml-[11px] h-5 border-l-2 border-dashed border-white/12" />
+        <RouteStep label="B" name={ride.to.name} color="#FF7B6B" textColor="#fff" />
+      </View>
 
-function StatBlock({
-  label,
-  value,
-  unit,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-}) {
-  return (
-    <View className="flex-1 bg-white rounded-[18px] p-3 mt-3">
-      <Text
-        className="text-black/50 text-[10px]"
-        style={{ fontWeight: "800", letterSpacing: 1 }}
-      >
-        {label.toUpperCase()}
-      </Text>
-      <View className="flex-row items-baseline mt-1">
-        <Text
-          className="text-black text-[22px]"
-          style={{ fontWeight: "900", letterSpacing: -0.9 }}
-        >
-          {value}
-        </Text>
-        {unit && (
-          <Text
-            className="text-black/50 text-[11px] ml-1"
-            style={{ fontWeight: "700" }}
-          >
-            {unit}
+      {hasJournal && (
+        <>
+          <Text className="text-white/35 text-[11px] font-black tracking-widest uppercase mx-5 mt-7 mb-3">
+            Journal ({ride.journal.length})
           </Text>
+          <View className="mx-5 flex-row flex-wrap gap-2.5">
+            {ride.journal.slice(0, 4).map((j) => (
+              <Pressable
+                key={j.id}
+                onPress={() => router.push({ pathname: "/ride/journal", params: { id: ride.id } })}
+                className="rounded-[16px] overflow-hidden"
+                style={{ width: "48%", aspectRatio: 1, backgroundColor: "#1D242F" }}
+              >
+                {j.data ? <Image source={{ uri: j.data }} style={{ width: "100%", height: "100%" }} /> : null}
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+
+      <View className="px-5 mt-8 flex-row gap-2.5">
+        {ride.status === "upcoming" && joined && (
+          <Pressable
+            onPress={() => { startRide(ride.id); router.push("/ride/live"); }}
+            className="flex-1 bg-primary rounded-[14px] py-4 items-center flex-row justify-center gap-2"
+          >
+            <Icon name="play" size={16} color="#fff" strokeWidth={2.6} />
+            <Text className="text-white text-[13px] font-extrabold">Start ride</Text>
+          </Pressable>
+        )}
+        {ride.status === "upcoming" && !joined && (
+          <Pressable
+            onPress={() => updateRide(ride.id, { riders: [...ride.riders, state.user!.name] })}
+            className="flex-1 bg-mint rounded-[14px] py-4 items-center flex-row justify-center gap-2"
+          >
+            <Icon name="check" size={16} color="#0B0E15" strokeWidth={2.8} />
+            <Text className="text-black text-[13px] font-extrabold">Join ride</Text>
+          </Pressable>
+        )}
+        {ride.status === "completed" && hasJournal && (
+          <Pressable
+            onPress={() => router.push({ pathname: "/ride/journal", params: { id: ride.id } })}
+            className="flex-1 bg-primary rounded-[14px] py-4 items-center flex-row justify-center gap-2"
+          >
+            <Icon name="book" size={16} color="#fff" strokeWidth={2.6} />
+            <Text className="text-white text-[13px] font-extrabold">Ride journal</Text>
+          </Pressable>
+        )}
+        {ride.status === "completed" && !hasJournal && (
+          <View className="flex-1 items-center py-4">
+            <Text className="text-mint text-[13px] font-bold">Completed</Text>
+          </View>
+        )}
+        {isCreator && ride.status === "upcoming" && (
+          <Pressable
+            onPress={() => { deleteRide(ride.id); router.back(); }}
+            className="flex-1 bg-surface-2 rounded-[14px] py-4 items-center flex-row justify-center gap-2"
+          >
+            <Icon name="trash" size={16} strokeWidth={2.4} />
+            <Text className="text-white text-[13px] font-extrabold">Cancel</Text>
+          </Pressable>
         )}
       </View>
+    </ScrollView>
+  );
+}
+
+function Mini({ label, value, unit }: { label: string; value: string; unit?: string }) {
+  return (
+    <View className="flex-1 p-3.5 rounded-[20px] bg-surface border border-white/8 items-center">
+      <Text className="text-white/35 text-[9px] font-black tracking-widest uppercase">{label}</Text>
+      <View className="flex-row items-baseline mt-1.5">
+        <Text className="text-white text-[22px] font-black tracking-tighter">{value}</Text>
+        {unit && <Text className="text-white/60 text-[11px] font-bold ml-1">{unit}</Text>}
+      </View>
     </View>
   );
 }
 
-function Row({
-  Icon,
-  label,
-  value,
-}: {
-  Icon: any;
-  label: string;
-  value: string;
-}) {
+function RouteStep({ label, name, color, textColor }: { label: string; name: string; color: string; textColor: string }) {
   return (
-    <View className="flex-row items-center gap-3">
-      <View className="w-9 h-9 rounded-full bg-white/6 items-center justify-center">
-        <Icon size={16} color="#D4FF3A" strokeWidth={2.6} />
+    <View className="flex-row items-center gap-3 py-1.5">
+      <View style={{ backgroundColor: color }} className="w-6 h-6 rounded-full items-center justify-center">
+        <Text style={{ color: textColor }} className="text-[11px] font-black">{label}</Text>
       </View>
-      <View className="flex-1">
-        <Text
-          className="text-white/50 text-[11px]"
-          style={{ fontWeight: "800", letterSpacing: 1 }}
-        >
-          {label.toUpperCase()}
-        </Text>
-        <Text
-          className="text-white text-[15px] mt-0.5"
-          style={{ fontWeight: "800" }}
-        >
-          {value}
-        </Text>
-      </View>
+      <Text className="text-white text-[14px] font-bold">{name}</Text>
     </View>
   );
 }
